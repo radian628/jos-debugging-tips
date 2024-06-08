@@ -1,0 +1,62 @@
+:root {
+  font-family: sans-serif;
+  width: 7.5in;
+  margin-left: 0.5in;
+  margin-right: 0.5in;
+  margin-top: 0.5in;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+tr:nth-child(2n) {
+  background-color: #eeeeee;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+td {
+  padding: 5px;
+}
+
+.highlighted {
+  background-color: yellow;
+  border-radius: 3px;
+}
+
+.good-bad {
+  display: flex;
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.bad {
+  background-color: #ffbbbb;
+  padding: 10px;
+}
+.good {
+  background-color: #bbffbb;
+  padding: 10px;
+}
+
+.horizontal {
+  display: flex;
+  align-items: center;
+}
+
+.big {
+  font-size: 200%;
+  opacity: 0.6;
+  margin-right: 10px;
+}
+
+.pagebreak {
+  page-break-after: always;
+}
+
+pre {
+  margin: 0;
+}

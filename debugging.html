@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h1>JOS Debugging Guide (Labs 3/4)</h1>
+    <p>
+      This is a guide for debugging common errors in the JOS labs 3
+      and 4. Consider following this guide <em>before consulting TAs or the instructor</em>
+      as it will give you the tools to solve most bugs in these labs faster than the time you 
+      would take to get a response. That said, <em>do not be afraid to seek help from TAs or the instructor!</em>
+    </p>
+    <h2>Error Codes</h2>
+    <h3>Identifying and Debugging Error Codes</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nowrap"><code>inc/error.h</code></td>
+          <td>List of error codes.</td>
+        </tr>
+        <tr>
+          <td class="nowrap"><code>lib/printfmt.c</code></td>
+          <td>
+            List of what <code>%e</code> will print when encountering these
+            error codes (in the <code>error_string</code> array)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      When debugging error codes, you can use the
+      <code>error_string</code> list in <code>lib/printfmt.c</code> to figure
+      out what error code a function must have returned. For instance, if you
+      see <code>invalid parameter</code>, you know that the error code that
+      generated that message was <code>-E_INVAL</code>.
+    </p>
+    <h3>Defensive Programming with Error Codes</h3>
+    <p>
+      If a function can return an error code, <em>always</em> propagate the
+      error or panic! Don't <em>ever</em> ignore it! You can check to see if an
+      error code exists by <em>checking if the return value is less than 0</em>.
+    </p>
+    <p>
+      For instance, if you run <code>page_insert</code> (which can return an
+      error code)...
+    </p>
+    <div class="good-bad">
+      <div class="bad">
+        <div class="horizontal">
+          <span class="big">✖</span>
+          <p>
+            <em>Don't</em> just call it on its own because it might error
+            without you realizing.
+          </p>
+        </div>
+        <pre>
+          <code>
+page_insert(pgdir, pp, va, perm);
+          </code>
+        </pre>
+      </div>
+      <div class="good">
+        <div class="horizontal">
+          <span class="big">✔</span>
+          <p>
+            Instead, explicitly panic if it fails, or if the enclosing function
+            returns an error code, return the error code.
+          </p>
+        </div>
+        <pre>
+          <code>
+// If the enclosing function CANNOT return an error code.
+if (page_insert(pgdir, pp, va, perm) &lt; 0) {
+  panic("page_insert failed!");
+}
+
+// ======================================================
+
+// If the enclosing function CAN return an error code.
+if ((r = page_insert(pgdir, pp, va, perm)) &lt; 0) {
+  return r;
+}
+          </code>
+        </pre>
+      </div>
+    </div>
+    <p><em>
+      Warning: You cannot check for the existence of an error code in the same way you check for a null pointer! 
+      This is because a null pointer (<code>NULL</code>) is really the integer <code>0</code>.
+      In an if statement, the integer <code>0</code> is treated as <em>false</em>, and thus the code within it doesn't run.
+      Everything else is treated as <em>true</em>, including the error codes, which are negative numberse. 
+    </em></p>
+    <div class="good-bad">
+      <div class="bad">
+        <div class="horizontal">
+          <span class="big">✖</span>
+          <p>
+            Don't use <code>if (!cond)</code> like you would with a null pointer.
+          </p>
+        </div>
+        <pre>
+          <code>
+if (!page_insert(...)) {
+  panic(...);
+}
+          </code>
+        </pre>
+      </div>
+      <div class="good">
+        <div class="horizontal">
+          <span class="big">✔</span>
+          <p>
+            Instead, check for the value being less than zero.
+          </p>
+        </div>
+        <pre>
+          <code>
+if (page_insert(...) &lt; 0) {
+  panic(...);
+}
+          </code>
+        </pre>
+      </div>
+    </div>
+    <span class="pagebreak"></span>
+    <h2>Trapframes</h2>
+    <h3>TL;DR on debugging trapframes</h3>
+    <ol>
+      <li>
+        Add a call to <code>print_trapframe</code> in the
+        <code>trap</code> function in <code>trap.c</code>, then rerun the
+        program.
+      </li>
+      <li>
+        Find the <code>eip</code> line in the resulting trapframe printout.
+      </li>
+      <li>
+        Take the <code>eip</code> value and look it up in the corresponding
+        disassembly.
+        <ul>
+          <li>For the kernel this is <code>obj/kern/kernel.asm</code></li>
+          <li>
+            For the user program <code>PROGRAMNAME</code> this is
+            <code>obj/user/PROGRAMNAME.asm</code>
+          </li>
+        </ul>
+      </li>
+      <li>
+        Once you've found it, scroll up until you've found a line of C code.
+        <em>This is the line of code that caused the trap</em>.
+      </li>
+    </ol>
+    <h3>How to Debug a Trapframe</h3>
+    <p>
+      If you are getting an unexpected trapframe (for instance, a kernel page
+      fault), consider following these steps to debug it:
+    </p>
+    <p>
+      First, if it isn't being printed already, add a call to
+      <code>print_trapframe</code> in the <code>trap</code> function in
+      <code>kern/trap.c</code> to print the contents of the trapframe.
+    </p>
+    <p>
+      Once you've done this, you should see something similar to the following
+      the next time you run the program.
+      <em>Before continuing, make sure you have the correct trapframe.</em>:
+    </p>
+    <pre>
+      <code>
+TRAP frame at 0xeffffeac from CPU 0
+edi  0xefffff54
+esi  0x00000001
+ebp  0xefffff30
+oesp 0xeffffecc
+ebx  0x00000000
+edx  0xeebfdfd0
+ecx  0x00000000
+eax  0xefffff54
+es   0x----0010
+ds   0x----0010
+<span class="highlighted">trap 0x0000000e Page Fault</span>
+<span class="highlighted">cr2  0x00000000</span>
+<span class="highlighted">err  0x00000000 [kernel, read, not-present]</span>
+<span class="highlighted">eip  0xf0104c96</span>
+cs   0x----0008
+flag 0x00000096
+      </code>
+    </pre>
+    <span class="pagebreak"></span>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="nowrap"><code>trap</code></td>
+          <td>
+            <code>trap</code> states the interrupt vector of the trap frame.
+            Keep in mind that many trap frames may be expected&mdash; for
+            instance, <code>Syscall</code> trap frames.
+          </td>
+        </tr>
+        <tr>
+          <td class="nowrap"><code>cr2</code></td>
+          <td>
+            The <code>cr2</code> register contains the faulting address for a
+            page fault&mdash; in other words, what pointer dereference caused
+            it. Since, in this case, <code>cr2 = 0x00000000</code>, which is a
+            null pointer, we know that this particular page fault was likely
+            caused by a dereference of a null pointer.
+          </td>
+        </tr>
+        <tr>
+          <td class="nowrap"><code>err</code></td>
+          <td>
+            The <code>err</code> is a bit field representing the causes of the
+            trapframe. It can determine whether a page fault was caused...
+            <ul>
+              <li>By the kernel or the user,</li>
+              <li>By a read or a write,</li>
+              <li>
+                By the page not existing (<code>not-present</code>) or because
+                permissions were invalid (<code>protection</code>).
+              </li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td class="nowrap"><code>eip</code></td>
+          <td>
+            The <code>eip</code> register points to the instruction that caused
+            the page fault. This is arguably the <em>most important</em> field
+            of the trapframe, as it tells us <em>the exact line of code</em> on
+            which the error occurred.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The nice thing is that&mdash; because all the binaries in JOS are designed
+      to be loaded at specific addresses&mdash; you can take the
+      <code>eip</code> value and load it in a disassembly file to find out what
+      assembly instruction <em>and what line of C code</em> it refers to.
+    </p>
+    <p>
+      If the page fault occurred in the <em>kernel</em>, look up the
+      <code>eip</code> value in <code>obj/kern/kernel.asm</code>. If it occurred
+      in a user program named <code>PROGRAMNAME</code>, look up the
+      <code>eip</code> value in <code>obj/user/PROGRAMNAME.asm</code>.
+    </p>
+    <p>
+      The example below is an excerpt from <code>obj/kern/kernel.asm</code>.
+    </p>
+    <pre>
+      <code>
+7273 f0104c87:   89 7c 24 04             mov    %edi,0x4(%esp)
+7274 f0104c8b:   89 04 24                mov    %eax,(%esp)
+7275 f0104c8e:   ff 55 08                call   *0x8(%ebp)
+7276         <span class="highlighted">while ((ch = *(unsigned char *) fmt++) != '%') {</span>
+7277 f0104c91:   89 f3                   mov    %esi,%ebx
+7278 f0104c93:   8d 73 01                lea    0x1(%ebx),%esi
+7279 <span class="highlighted">f0104c96</span>:   0f b6 03                movzbl (%ebx),%eax
+7280 f0104c99:   83 f8 25                cmp    $0x25,%eax
+7281 f0104c9c:   75 e1                   jne    f0104c7f <vprintfmt+0x11>
+7282 f0104c9e:   c6 45 d8 20             movb   $0x20,-0x28(%ebp)
+7283 f0104ca2:   c7 45 e0 00 00 00 00    movl   $0x0,-0x20(%ebp)
+      </code>
+    </pre>
+    <p>In this case, <code>f0104c96</code> ended up pointing to the instruction <code>movzbl (%ebx),%eax</code>, which ended up being part of the line of C code <code>while ((ch = *(unsigned char *) fmt++) != '%') {</code></p>
+    <p>
+      Once you've found the line of C code, continue debugging from there. Note that while this may have <em>caused the trap</em>, it may not actually be the <em>root cause of the bug.</em> 
+    </p>
+    <p>In the example above, while the bug might <em>appear</em> to be in the while loop (which is in the <em>vprintfmt</em> function), it <em>actually</em> is being caused by a call to <code>cprintf</code> elsewhere that passes in a null pointer&mdash; <code>cprintf((char *)NULL);</code></p>
+    <span class="pagebreak"></span>
+    <h4>Triple Faults</h4>
+    <p>The same techniques can be applied to triple faults. QEMU's triple fault output also has an <code>eip</code> field, which can be used in the same way as the <code>eip</code> in a page fault trapframe.</p>
+    <h2>Debugging Infinite Loops in GDB</h2>
+    <p>JOS getting stuck for more than a few seconds without entering the kernel monitor? You might have an infinite loop.</p>
+    <p>To debug an infinite loop:</p>
+    <ol>
+      <li>Run JOS with GDB (e.g. <code>make qemu-nox-gdb</code> or <code>make run-programname-nox-gdb</code> etc).</li>
+      <li>Wait until it gets stuck in the infinite loop.</li>
+      <li>Run <code>Ctrl+C</code> <em>in the <code>gdb</code> terminal</em> (not in the JOS terminal).</li>
+      <li>Get a backtrace in gdb using the gdb <code>bt</code> command to figure out where it is stuck.</li>
+    </ol>
+    <p>Note that at this point, it may not be immediately obvious where the infinite loop is, 
+      as it could be crossing the kernel/user boundary. If this is the case, consider adding 
+      a call to <code>print_trapframe</code> or tracing through the code in order to figure 
+      out <em>what</em> your program is erroneously looping through.</p>
+    <h2>Readability Tips</h2>
+    <h3>Guard Clauses</h3>
+    <p>Have a function with multiple nested conditions? Consider using guard clauses to reduce nesting.</p>
+    <div class="good-bad">
+      <div class="bad">
+        <div class="horizontal">
+          <span class="big">✖</span>
+          <p>
+            Avoid checking conditions like this, as it causes lots of nesting.
+          </p>
+        </div>
+        <pre>
+          <code>
+int f() {
+  do_something_1();
+  if (a) {
+    do_something_2();
+    if (b) {
+      do_something_3();
+      if (c) {
+        do_something_4();
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+          </code>
+        </pre>
+      </div>
+      <div class="good">
+        <div class="horizontal">
+          <span class="big">✔</span>
+          <p>
+            Instead, invert the conditions and use early returns to avoid nesting.
+          </p>
+        </div>
+        <pre>
+          <code>
+int f() {
+  do_something_1();
+  if (!a) return 0;
+  do_something_2();
+  if (!b) return 0;
+  do_something_3();
+  if (!c) return 0;
+  do_something_4();
+  return 1;
+}
+          </code>
+        </pre>
+      </div>
+    </div>
+    <p></p>
+  </body>
+</html>

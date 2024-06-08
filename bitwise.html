@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+  </head>
+  <body>
+    <h1>Bit Fields Explained (or, What Does <code>pte & PTE_P</code> Do?)</h1>
+    <p>
+      Numbers in computers are represented in binary. And binary numbers are
+      made up of binary digits, or <em>bits</em> per short. A bit can either be
+      a 1 or a 0.
+    </p>
+    <p>
+      Operations can be applied to the individual bits of numbers. These
+      operations are called <em>bitwise</em> operators.
+    </p>
+    <h2>~</h2>
+    The <code>~</code>, or Bitwise NOT operator, takes all the 0s in a number
+    and makes them 1s; and takes all the 1s and makes them 0s. For instance,
+    consider the number <code>1234</code>, which is
+    <code>00000000000000000000010011010010</code> as a 32-bit integer in binary.
+  </body>
+</html>
