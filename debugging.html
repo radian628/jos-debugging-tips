@@ -294,12 +294,18 @@ flag 0x00000096
       <li>Get a backtrace in gdb using the gdb <code>bt</code> command to figure out where it is stuck.</li>
     </ol>
     <p>Note that at this point, it may not be immediately obvious where the infinite loop is, 
-      as it could be crossing the kernel/user boundary. If this is the case, consider adding 
-      a call to <code>print_trapframe</code> or tracing through the code in order to figure 
+      as it could be crossing the kernel/user boundary and/or consist of a loop of page faults. 
+      If this is the case, consider adding a call to <code>print_trapframe</code> to detect these 
+      page faults or tracing through the code in order to figure 
       out <em>what</em> your program is erroneously looping through.</p>
     <h2>Readability Tips</h2>
     <h3>Guard Clauses</h3>
-    <p>Have a function with multiple nested conditions? Consider using guard clauses to reduce nesting.</p>
+    <p>
+      Have a function with multiple nested conditions? Consider using guard clauses to reduce nesting.
+      Note that this same concept can be used with <code>break</code> and <code>continue</code> statements
+      within loops. 
+
+    </p>
     <div class="good-bad">
       <div class="bad">
         <div class="horizontal">
